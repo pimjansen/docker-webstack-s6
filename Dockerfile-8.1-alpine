@@ -1,0 +1,28 @@
+FROM php:8.1-fpm-alpine
+
+# Install root packages
+RUN apk -U upgrade && apk add --no-cache \
+    curl \
+    nginx \
+    tzdata \
+    && addgroup -g 1000 -S app \
+    && adduser -u 1000 -G app -S app \
+    && rm -rf /var/cache/apk/* /etc/nginx/conf.d/* /usr/local/etc/php-fpm.d/*
+
+# Add S6 Overlay
+COPY files/s6-overlay files/general /
+
+# Add composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Add extension installer
+COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
+RUN install-php-extensions opcache
+
+# Set default paths and startup
+WORKDIR /app
+ENTRYPOINT ["/init"]
+
+EXPOSE 80
+
+HEALTHCHECK --interval=5s --timeout=5s CMD curl -f http://127.0.0.1/php-fpm-ping || exit 1
